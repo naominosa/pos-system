@@ -1,0 +1,28 @@
+<h2>Omie Store — Daily Report for {{ $date }}</h2>
+
+<p><strong>Total revenue:</strong> ₦{{ number_format($totalRevenue, 2) }}</p>
+<p><strong>Total transactions:</strong> {{ $totalTransactions }}</p>
+
+<h3>Shift reports</h3>
+<table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse;">
+  <tr>
+    <th>Staff</th>
+    <th>Role</th>
+    <th>Sales</th>
+    <th>Transactions</th>
+    <th>Satisfied customers</th>
+    <th>Notes</th>
+  </tr>
+  @forelse ($reports as $report)
+    <tr>
+      <td>{{ $report->staff->name ?? '—' }}</td>
+      <td>{{ ucfirst($report->role) }}</td>
+      <td>₦{{ number_format($report->total_sales, 2) }}</td>
+      <td>{{ $report->total_transactions }}</td>
+      <td>{{ $report->satisfied_customers ?? '—' }}</td>
+      <td>{{ $report->notes ?? '—' }}</td>
+    </tr>
+  @empty
+    <tr><td colspan="6">No shift reports were submitted today.</td></tr>
+  @endforelse
+</table>

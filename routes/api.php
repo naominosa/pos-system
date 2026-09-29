@@ -7,6 +7,10 @@ use App\Models\SaleItem;
 use App\Models\Staff;
 use Illuminate\Support\Facades\Hash;
 // use Illuminate\Support\Facades\Http;
+
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Mail;
+
 use Illuminate\Support\Facades\Http;
 Route::post('/login', function (Illuminate\Http\Request $request) {
     $staff = Staff::where('login_info', $request->login_info)->first();
@@ -43,6 +47,48 @@ Route::middleware('auth:sanctum')->group(function () {
         return $product;
     });
 
+    Route::post('/products/{id}/request-delete-otp', function ($id) {
+    $user = auth()->user();
+    if ($user->role !== 'manager') {
+        return response()->json(['message' => 'Only managers can do this.'], 403);
+    }
+
+    $product = Product::findOrFail($id);
+    $otp = rand(100000, 999999);
+    Cache::put("delete-otp-{$user->staff_id}-{$id}", $otp, now()->addMinutes(5));
+
+    Mail::raw("Your code to delete '{$product->name}' is: {$otp}\nThis expires in 5 minutes.", function ($message) use ($user) {
+        $message->to($user->login_info)->subject('Omie Store — Delete confirmation code');
+    });
+
+    return response()->json(['message' => 'Code sent to your email.']);
+});
+
+Route::delete('/products/{id}', function (Illuminate\Http\Request $request, $id) {
+    $user = auth()->user();
+    if ($user->role !== 'manager') {
+        return response()->json(['message' => 'Only managers can do this.'], 403);
+    }
+
+    $cachedOtp = Cache::get("delete-otp-{$user->staff_id}-{$id}");
+    if (!$cachedOtp || (string) $cachedOtp !== (string) $request->otp) {
+        return response()->json(['message' => 'That code is wrong or has expired.'], 422);
+    }
+
+    $product = Product::findOrFail($id);
+
+    \App\Models\ProductDeletion::create([
+        'product_name' => $product->name,
+        'barcode' => $product->barcode,
+        'deleted_by' => $user->staff_id,
+    ]);
+
+    $product->delete();
+    Cache::forget("delete-otp-{$user->staff_id}-{$id}");
+
+    return response()->json(['message' => 'Product deleted.']);
+});
+
     Route::get('/products/lookup-external/{barcode}', function ($barcode) {
     try {
         $response = Http::timeout(5)->get("https://world.openfoodfacts.org/api/v0/product/{$barcode}.json");
@@ -66,23 +112,32 @@ Route::middleware('auth:sanctum')->group(function () {
 Route::post('/assistant', function (Illuminate\Http\Request $request) {
     $userMessage = $request->message;
 
-    $response = Http::withToken(env('GROQ_API_KEY'))
-        ->post('https://api.groq.com/openai/v1/chat/completions', [
-            'model' => 'llama-3.1-8b-instant',
-            'messages' => [
-                [
-                    'role' => 'system',
-                    'content' => 'You are a friendly, upbeat assistant inside Omie Store, a point-of-sale app for a Nigerian shop. '
+    $response = Http::post(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=' . env('GEMINI_API_KEY'),
+        // 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' . env('GEMINI_API_KEY'),
+        [
+            'systemInstruction' => [
+                'parts' => [
+                    ['text' => 'You are a friendly, upbeat assistant inside Omie Store, a point-of-sale app for a Nigerian shop. '
                         . 'You help cashiers and managers use the app (scanning, checkout, inventory, closing a shift) '
-                        . 'and answer general shop questions. Keep answers short, warm, and in simple English. Use an occasional fitting emoji.',
+                        . 'and answer general shop questions. Keep answers short, warm, and in simple English. Use an occasional fitting emoji.']
                 ],
-                ['role' => 'user', 'content' => $userMessage],
             ],
-            'temperature' => 0.6,
-        ]);
+            'contents' => [
+                ['role' => 'user', 'parts' => [['text' => $userMessage]]],
+            ],
+        ]
+    );
 
     $data = $response->json();
-    $reply = $data['choices'][0]['message']['content'] ?? "Sorry, I couldn't think of an answer just now. Try again?";
+
+    \Illuminate\Support\Facades\Log::info('Gemini raw response', $data ?? []);
+
+    $reply = $data['candidates'][0]['content']['parts'][0]['text'] ?? null;
+
+    if (!$reply) {
+        return response()->json(['reply' => "Sorry, I couldn't think of an answer just now. Try again?", 'debug' => $data]);
+    }
 
     return response()->json(['reply' => $reply]);
 });

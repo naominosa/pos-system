@@ -1,7 +1,7 @@
 <?php
 
 namespace App\Models;
-use App\Models\EodReport;
+
 use Illuminate\Database\Eloquent\Model;
 
 class EodReport extends Model

@@ -15,24 +15,20 @@ return [
     |
     */
 
-    'paths' => ['api/*', 'sanctum/csrf-cookie'],
+'paths' => ['api/*', 'sanctum/csrf-cookie'],
 
-    'allowed_methods' => ['*'],
+'allowed_methods' => ['*'],
 
-    /*'allowed_origins' => ['*'],*/
+'allowed_origins' => ['http://localhost:5173', 'https://pos-frontend.vercel.app'],
 
-    'allowed_origins' => ['http://localhost:5173'],
+'allowed_origins_patterns' => [],
 
-    'allowed_origins' => ['https://pos-frontend.vercel.app'],
+'allowed_headers' => ['*'],
 
-    'allowed_origins_patterns' => [],
+'exposed_headers' => [],
 
-    'allowed_headers' => ['*'],
+'max_age' => 0,
 
-    'exposed_headers' => [],
-
-    'max_age' => 0,
-
-    'supports_credentials' => false,
+'supports_credentials' => false,
 
 ];

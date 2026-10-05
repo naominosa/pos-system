@@ -7,10 +7,11 @@ return [
     'allowed_methods' => ['*'],
 
     'allowed_origins' => [
-        'http://localhost:5173',
-        'https://pos-frontend-project-coral.vercel.app',
-        'https://pos-frontend-project-7sua9od2j-naomis-projects-10628417.vercel.app',
-    ],
+    'http://localhost:5173',
+    'https://pos-frontend-nine-delta.vercel.app',
+    'https://pos-frontend-git-main-naomis-projects-10628417.vercel.app',
+    'https://pos-frontend-mfbmv04e7-naomis-projects-10628417.vercel.app',
+],
 
     'allowed_origins_patterns' => [],
 

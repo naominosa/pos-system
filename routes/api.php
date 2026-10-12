@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Hash;
 
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Mail;
+use App\Models\EodReport;
 
 use Illuminate\Support\Facades\Http;
 Route::post('/login', function (Illuminate\Http\Request $request) {

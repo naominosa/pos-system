@@ -71,11 +71,6 @@ Route::delete('/products/{id}', function (Illuminate\Http\Request $request, $id)
         return response()->json(['message' => 'Only managers can do this.'], 403);
     }
 
-    $cachedOtp = Cache::get("delete-otp-{$user->staff_id}-{$id}");
-    if (!$cachedOtp || (string) $cachedOtp !== (string) $request->otp) {
-        return response()->json(['message' => 'That code is wrong or has expired.'], 422);
-    }
-
     $product = Product::findOrFail($id);
 
     \App\Models\ProductDeletion::create([
@@ -85,7 +80,6 @@ Route::delete('/products/{id}', function (Illuminate\Http\Request $request, $id)
     ]);
 
     $product->delete();
-    Cache::forget("delete-otp-{$user->staff_id}-{$id}");
 
     return response()->json(['message' => 'Product deleted.']);
 });

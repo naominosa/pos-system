@@ -266,7 +266,11 @@ Route::post('/staff', function (Illuminate\Http\Request $request) {
             return response()->json(['message' => 'Only managers can remove products.'], 403);
         }
         try {
-            Product::findOrFail($id)->delete();
+            // Product::findOrFail($id)->delete();
+
+            $product = Product::findOrFail($id);
+\App\Models\SaleItem::where('product_id', $id)->delete();
+$product->delete();
             return response()->json(['message' => 'Product removed.']);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json(['message' => 'That product no longer exists.'], 404);

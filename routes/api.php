@@ -7,6 +7,7 @@ use App\Models\SaleItem;
 use App\Models\Staff;
 use Illuminate\Support\Facades\Hash;
 // use Illuminate\Support\Facades\Http;
+use App\Support\Mailer;
 
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Mail;
@@ -173,17 +174,83 @@ Route::post('/eod', function (Illuminate\Http\Request $request) {
         ]
     );
 
+    // return $report;
+
+        if ($user->role === 'cashier') {
+        $managers = Staff::where('role', 'manager')->get();
+        foreach ($managers as $manager) {
+            Mailer::send(
+                $manager->login_info,
+                "Shift report from {$user->name}",
+                '<h3>' . e($user->name) . ' closed their shift</h3>'
+                . '<p>Sales: ₦' . number_format($report->total_sales, 2) . '</p>'
+                . '<p>Transactions: ' . $report->total_transactions . '</p>'
+                . '<p>Satisfied customers: ' . ($report->satisfied_customers ?? '-') . '</p>'
+                . '<p>Notes: ' . e($report->notes ?? '-') . '</p>'
+            );
+        }
+    }
+
     return $report;
 });
 
-// Manager view: every report submitted for a given day
-Route::get('/eod', function (Illuminate\Http\Request $request) {
-    if (auth()->user()->role !== 'manager') {
-        return response()->json(['message' => 'Only managers can view this.'], 403);
+Route::post('/eod/send-final', function (Illuminate\Http\Request $request) {
+    $user = auth()->user();
+    if ($user->role !== 'manager') {
+        return response()->json(['message' => 'Only managers can send the final report.'], 403);
     }
-    $date = $request->query('date', now()->toDateString());
-    return EodReport::with('staff')->whereDate('report_date', $date)->orderBy('role')->get();
+
+    $ownerEmail = env('OWNER_EMAIL');
+    if (!$ownerEmail) {
+        return response()->json(['message' => 'The owner email is not set up yet.'], 422);
+    }
+
+    $date = $request->date ?? now()->toDateString();
+    $reports = EodReport::with('staff')->whereDate('report_date', $date)->orderBy('role')->get();
+    $sales = Sale::whereDate('created_at', $date)->get();
+
+    $rows = '';
+    foreach ($reports as $r) {
+        $rows .= '<tr>'
+            . '<td>' . e($r->staff->name ?? '-') . '</td>'
+            . '<td>' . ucfirst($r->role) . '</td>'
+            . '<td>₦' . number_format($r->total_sales, 2) . '</td>'
+            . '<td>' . $r->total_transactions . '</td>'
+            . '<td>' . ($r->satisfied_customers ?? '-') . '</td>'
+            . '<td>' . e($r->notes ?? '-') . '</td>'
+            . '</tr>';
+    }
+    if ($rows === '') {
+        $rows = '<tr><td colspan="6">No shift reports were submitted.</td></tr>';
+    }
+
+    $html = '<h2>Omie Store: Final report for ' . $date . '</h2>'
+        . '<p><strong>Total revenue:</strong> ₦' . number_format($sales->sum('total_amount'), 2) . '</p>'
+        . '<p><strong>Total transactions:</strong> ' . $sales->count() . '</p>'
+        . '<p><strong>Manager note (' . e($user->name) . '):</strong> ' . e($request->note ?: '-') . '</p>'
+        . '<h3>Shift reports</h3>'
+        . '<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;">'
+        . '<tr><th>Staff</th><th>Role</th><th>Sales</th><th>Transactions</th><th>Satisfied customers</th><th>Notes</th></tr>'
+        . $rows
+        . '</table>';
+
+    $sent = Mailer::send($ownerEmail, "Omie Store: Final report for {$date}", $html);
+
+    if (!$sent) {
+        return response()->json(['message' => 'The email could not be sent. Please try again.'], 500);
+    }
+
+    return response()->json(['message' => 'Final report sent to the owner.']);
 });
+
+// Manager view: every report submitted for a given day
+// Route::get('/eod', function (Illuminate\Http\Request $request) {
+//     if (auth()->user()->role !== 'manager') {
+//         return response()->json(['message' => 'Only managers can view this.'], 403);
+//     }
+//     $date = $request->query('date', now()->toDateString());
+//     return EodReport::with('staff')->whereDate('report_date', $date)->orderBy('role')->get();
+// });
 
     Route::get('/sales/by-date', function (Illuminate\Http\Request $request) {
     if (auth()->user()->role !== 'manager') {
